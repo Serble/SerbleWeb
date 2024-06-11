@@ -98,7 +98,7 @@ public class DnsServerStorage {
     /// <param name="space">The namespace to match</param>
     /// <returns>A list of the found records.</returns>
     public async Task<DnsRecord[]> GetNamespaceRecords(string space) {
-        return await ReadData($"SELECT * FROM records WHERE name LIKE '%.{space}'", table => {
+        return await ReadData($"SELECT * FROM records WHERE name LIKE '%.{space}' OR name='{space}'", table => {
             List<DnsRecord> records = [];
             while (table.Read()) {
                 records.Add(new DnsRecord(table.GetString("type"), table.GetString("name"), table.GetString("value")));

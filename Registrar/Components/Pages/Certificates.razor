@@ -1,0 +1,98 @@
+@page "/certs"
+@using Org.BouncyCastle.Crypto
+@using Org.BouncyCastle.X509
+@using Registrar.Data
+@using SerbleApi.Schemas
+@inject IJSRuntime JsRuntime
+@rendermode InteractiveServer
+
+<RequireLogin Callback="OnLogin"></RequireLogin>
+<PageTitle>Serble Domains - Certificates</PageTitle>
+
+<h3>Certificate Request</h3>
+
+<br/>
+
+@for (int i = 0; i < _hosts.Length; i++) {
+    int i1 = i;
+    <input @bind="_hosts[i1]" placeholder="Hostname"/>
+    if (_hosts.Length > 1) {
+        <button class="btn btn-danger" @onclick="() => RemoveHostAt(i1)">Remove</button>
+    }
+    <br/>
+}
+<button class="btn btn-primary" @onclick="AddHost">Add Host</button>
+<br/>
+@if (_user == null) {
+    <button class="btn btn-success" disabled>Loading user details...</button>
+}
+else {
+    <button class="btn btn-success" @onclick="Generate">Generate</button>
+}
+<br/>
+
+<p class="text-danger">@_error</p>
+
+@if (_key == "") {
+    <h5>@_cert</h5>
+}
+else {
+    <button class="btn btn-primary" @onclick="() => CopyToClipboard(_cert)">Copy Certificate</button>
+    <button class="btn btn-primary" @onclick="() => CopyToClipboard(_key)">Copy Keys</button>
+}
+
+@code {
+    private SerbleUser? _user;
+    private string _cert = "";
+    private string _key = "";
+    private string _error = "";
+    private string[] _hosts = new string[1];
+
+    private async Task CopyToClipboard(string text) {
+        await new HtmlInteractor(JsRuntime).CopyToClipboard(text);
+    }
+
+    public Task OnLogin((SerbleUser?, string) arg) {
+        _user = arg.Item1;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task<bool> IsAllowed(string hostname) {
+        string[] ownedHosts = await Program.Storage.GetUsersNamespaces(_user!.Id);
+        return ownedHosts.Any(oh => oh == hostname || hostname.EndsWith("." + oh));
+    }
+
+    private async Task AddHost() {
+        _hosts = _hosts.Append("").ToArray();
+    }
+
+    public async Task Generate() {
+        _error = "";
+        _key = "Loading...";
+        _cert = "Loading: " + string.Join(',', _hosts);
+        StateHasChanged();
+
+        foreach (string hostname in _hosts) {
+            // Check is host is valid and owned by user
+            if (await IsAllowed(hostname)) continue;
+            _error = "You do not own this host: " + hostname;
+            _cert = "";
+            _key = "";
+            StateHasChanged();
+            return;
+        }
+        
+        (X509Certificate, AsymmetricCipherKeyPair) data = CertManager.GenerateSiteCert(_hosts);
+        _cert = CertManager.ExportCertToString(data.Item1);
+        _key = CertManager.ExportKeyToString(data.Item2);
+        StateHasChanged();
+    }
+
+    private Task RemoveHostAt(int i1) {
+        _hosts = _hosts.Where((_, i) => i != i1).ToArray();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+}

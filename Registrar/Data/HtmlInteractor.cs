@@ -9,6 +9,10 @@ public class HtmlInteractor {
         _jsRuntime = jsRuntime;
     }
 
+    public async Task CopyToClipboard(string text) {
+        await _jsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+    }
+
     public async Task<string> GetValue(string id) {
         return await _jsRuntime.InvokeAsync<string>("eval", "document.getElementById('" + id + "').value");
     }
