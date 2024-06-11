@@ -1,0 +1,80 @@
+@page "/Register"
+@using Registrar.Data
+@using SerbleApi.Schemas
+@inject IJSRuntime JsRuntime
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<RequireLogin Callback="OnLogin"></RequireLogin>
+
+<h3>Register</h3>
+
+<input id="search" placeholder="Domain Search"/>
+<button class="btn btn-success" @onclick="Search">Search</button>
+
+<h5 class="text-danger">@_error</h5>
+
+@if (_available != null) {
+    <br/>
+    <div class="bg-secondary">
+        <h5>@_available</h5>
+        <button class="btn btn-success" @onclick="Claim">Claim</button>
+    </div>
+}
+
+@code {
+    private SerbleUser? _user;
+    private string? _available;
+    private string _error = "";
+
+    public Task OnLogin((SerbleUser?, string) arg) {
+        _user = arg.Item1;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    public async Task Search() {
+        _error = "";
+        _available = null;
+        StateHasChanged();
+        HtmlInteractor interactor = new(JsRuntime);
+        string query = await interactor.GetValue("search");
+        query = query.ToLower();
+        
+        if (query.Contains('.')) {
+            _error = "You must claim a TLD (No period).";
+            StateHasChanged();
+            return;
+        }
+
+        // Get the name without the namespace (Everything before the first dot) and the namespace
+        // string name = query.Split('.')[0];
+        // string space = query[(name.Length + 1)..];
+        // if (!Program.ValidTlds.Contains(space)) {
+        //     _error = "Invalid TLD, must be: " + string.Join(',', Program.ValidTlds);
+        //     StateHasChanged();
+        //     return;
+        // }
+        
+        string? owner = await Program.Storage.GetOwnerOfNamespace(query);
+        if (owner != null) {
+            _error = "Domain is already taken.";
+            StateHasChanged();
+            return;
+        }
+
+        _error = "";
+        _available = query;
+        StateHasChanged();
+    }
+
+    private async Task Claim() {
+        if (_available == null) {
+            return;
+        }
+
+        await Program.Storage.AddOwnershipAsync(_available, _user!.Id);
+        NavigationManager.NavigateTo("/domains");
+    }
+
+}

@@ -1,0 +1,42 @@
+﻿@page "/domains"
+@using GeneralPurposeLib
+@using Registrar.Data
+@using SerbleApi.Schemas
+@inject IJSRuntime JsRuntime
+@rendermode InteractiveServer
+
+<RequireLogin Callback="OnLogin"></RequireLogin>
+<PageTitle>Domains</PageTitle>
+
+@if (_user == null) {
+    <h1>Loading user data...</h1>
+}
+else {
+    <h1>Hello @_user.Username</h1>
+    
+    <h4>Owned Namespaces:</h4>
+    <ul>
+        @if (_namespaces!.Length == 0) {
+            <p>You do not own any namespaces</p>
+        }
+        @foreach (string space in _namespaces!) {
+            <li><a href="/manage/@space">@space</a></li>
+        }
+    </ul>
+}
+
+@code {
+    private SerbleUser? _user;
+    private string[]? _namespaces;
+
+    public async Task OnLogin((SerbleUser?, string) arg) {
+        _user = arg.Item1;
+        HtmlInteractor interactor = new(JsRuntime);
+        await interactor.Log("WE GOT THE THING");
+        Logger.Debug("We got the thing");
+
+        _namespaces = await Program.Storage.GetUsersNamespaces(_user!.Id);
+        
+        StateHasChanged();
+    }
+}

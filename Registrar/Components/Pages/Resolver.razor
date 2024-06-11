@@ -1,0 +1,32 @@
+@page "/Resolver"
+@using System.Net
+@using DnsResolver
+@using Registrar.Data
+@inject IJSRuntime JsRuntime
+@rendermode InteractiveServer
+
+<h3>Resolver</h3>
+
+<br/>
+<input id="hostname" placeholder="Hostname"/>
+<button class="btn btn-success" @onclick="Resolve">Resolve</button>
+
+<div class="bg-primary">
+    <h5>Resolved: @(_resolved?.ToString() ?? "No result")</h5>
+</div>
+
+@code {
+    private IPAddress? _resolved;
+
+    public async Task Resolve() {
+        HtmlInteractor interactor = new(JsRuntime);
+        string hostname = await interactor.GetValue("hostname");
+        try {
+            _resolved = await DnsResolver.ResolveIp(hostname);
+        }
+        catch (FormatException) {
+            _resolved = null;
+        }
+        StateHasChanged();
+    }
+}

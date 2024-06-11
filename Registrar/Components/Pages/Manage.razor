@@ -1,0 +1,93 @@
+@page "/Manage/{Namespace}"
+@using DnsCommons
+@using Registrar.Data
+@using SerbleApi.Schemas
+@inject IJSRuntime JsRuntime
+@rendermode InteractiveServer
+
+<RequireLogin Callback="OnLogin"></RequireLogin>
+
+@if (_noAccess) {
+    <h1>You do not have permission</h1>
+}
+else {
+    <h3>Manage <em>@Namespace</em></h3>
+    
+    <div class="bg-primary">
+        <input id="name" class="form-control" placeholder="Name"/>
+        <input id="type" class="form-control" placeholder="Type"/>
+        <input id="value" class="form-control" placeholder="Value"/>
+        <button class="btn btn-success" @onclick="Create">Create Record</button>
+    </div>
+    
+    <br/>
+    <hr/>
+    
+    @foreach (DnsRecord record in _records) {
+        <div class="bg-secondary">
+            <h5>Name: @record.Name</h5>
+            <p>Type: @record.Type</p>
+            <p>Value: @record.Value</p>
+            <button class="btn btn-danger" @onclick="() => Delete(record.Name)">Delete</button>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Namespace { get; set; } = null!;
+    
+    private SerbleUser? _user;
+    private bool _noAccess = true;
+    private DnsRecord[] _records = null!;
+
+    public async Task OnLogin((SerbleUser?, string) arg) {
+        _user = arg.Item1;
+        HtmlInteractor interactor = new(JsRuntime);
+        await interactor.Log("WE GOT THE THING");
+
+        await Reload();
+    }
+
+    public async Task Reload() {
+        string[] spaces = await Program.Storage.GetUsersNamespaces(_user!.Id);
+        _noAccess = !spaces.Contains(Namespace);
+
+        if (!_noAccess) {
+            _records = await Program.Storage.GetNamespaceRecords(Namespace);
+        }
+        
+        StateHasChanged();
+    }
+
+    public async Task Delete(string name) {
+        if (_noAccess) {
+            return;
+        }
+
+        await Program.Storage.RemoveRecordAsync(name);
+        await Reload();
+    }
+    
+    public async Task Create() {
+        HtmlInteractor interactor = new(JsRuntime);
+        
+        if (_noAccess) {
+            await interactor.Log("NO ACCESS TO NAMESPACE");
+            return;
+        }
+        
+        string name = await interactor.GetValue("name");
+        if (name is "*" or "") {
+            name = Namespace;
+        }
+        else {
+            name = name.ToLower() + "." + Namespace;
+        }
+        string type = await interactor.GetValue("type");
+        string value = await interactor.GetValue("value");
+
+        await Program.Storage.AddRecordAsync(new DnsRecord(type, name, value));
+        await Reload();
+    }
+}
